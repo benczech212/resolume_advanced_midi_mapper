@@ -3,7 +3,9 @@ import threading
 import logging
 import os
 import math
+import rtmidi
 from resolume_http_api import *
+
 
 last_press_times = {}  # (channel, note) -> last_time
 press_start_times = {}  # (channel, note) -> time when press started
@@ -11,6 +13,7 @@ hold_threads = {}  # (channel, note) -> Thread
 HOLD_THRESHOLD = 0.75  # seconds
 DEBOUNCE_INTERVAL = 0.2  # seconds
 
+# An individual mapping of actions to do when a specific midi note or controller is pressed
 class MidiMapping:
     def __init__(self, name, type="note", channel=None, note=None, controller=None, toggle=False, callback=None, easing=None, hold_callback=None, hold_repeat_interval=None):
         self.name = name
@@ -132,29 +135,14 @@ def get_channel_group_mapping(resolume_host, resolume_http_port,name_to_channel)
 
 
 
-# === MIDI Setup ===
-def open_named_port(midi, name_match, port_type):
-    ports = midi.get_ports()
-    for i, name in enumerate(ports):
-        if name_match.lower() in name.lower():
-            midi.open_port(i)
-            logging.info(f"✅ Opened {port_type} port: {name}")
-            return
-    raise RuntimeError(f"❌ Could not open {port_type} port containing: '{name_match}'")
-
-# === LED Control ===
-def set_leds(midi_out, targets):
-    for target in targets:
-        channel = target["channel"]
-        note = target["note"]
-        value = target.get("value", 127)
-        midi_out.send_message([0x90 + channel, note, value])
 
 
 
 
 
-# === Controller State ===
+
+# A class to manage the state of each channel
+# This class will handle the MIDI state for each channel, including the group and layer information
 class ControllerState:
     def __init__(self, channel,channel_group_mapping, layer_list, midi_out):
         self.midi_out = midi_out
@@ -229,3 +217,145 @@ class ControllerState:
 
         
         return fill_layers
+
+class LayoutMap:
+    def __init__(self, layout_file, rotation=0):
+        self.layout_map = self.load_layout(layout_file)
+        self.rotation = rotation
+        if rotation not in [0, 90, 180, 270]:
+            raise ValueError("Rotation must be one of: 0, 90, 180, 270 degrees")
+        self.rotate_layout()
+        
+
+    def rotate_layout(self):
+        if self.rotation == 90:
+            self.layout_map = {(y, -x): v for (x, y), v in self.layout_map.items()}
+        elif self.rotation == 180:
+            self.layout_map = {(-x, -y): v for (x, y), v in self.layout_map.items()}
+        elif self.rotation == 270:
+            self.layout_map = {(-y, x): v for (x, y), v in self.layout_map.items()}
+
+    def load_layout(self, layout_file):
+        with open(layout_file, 'r') as f:
+            return json.load(f)
+
+    def get_entry(self, x, y):
+        return self.layout_map.get((x, y))
+
+    def get_all_entries(self):
+        return self.layout_map.values()
+
+    def get_note_channel_status_by_xy(self, x, y):
+        entry = self.get_entry(x, y)
+        if entry:
+            return entry["note"], entry["status"]
+        return None, None
+
+    
+class MidiController:
+    status_map = {
+        144: "Note",
+        176: "CC",
+    }
+    def __init__(self, config, callback_registry=None):
+        self.controller_name = config["name"]
+        self.layout_map_file = config["layout_map"]
+        self.action_map_file = config["action_map"]
+        self.rotation = config.get("rotation", 0)
+        self.callback_registry = callback_registry or {}
+
+        self.layout_map = LayoutMap(self.layout_map_file, self.rotation)
+        self.mappings = self.load_action_map(self.action_map_file)
+
+        self.midi_in = rtmidi.MidiIn()
+        self.midi_out = rtmidi.MidiOut()
+        self.open_ports()
+        self.ports = []
+
+    def open_ports(self):
+        self.open_named_port(self.midi_in, self.controller_name, "input")
+        self.open_named_port(self.midi_out, self.controller_name, "output")
+
+    def open_named_port(self, midi, keyword, port_type):
+        name_match = keyword.lower()
+        logging.info(f"Opening {port_type} port containing: '{name_match}'")
+        available_ports = midi.get_ports()
+        for i, port in enumerate(available_ports):
+            if name_match in port.lower():
+                logging.info(f"Opening {port_type} port: {port}")
+                midi.open_port(i)
+                return
+        logging.error(f"No matching {port_type} ports found with keyword '{name_match}'")
+        raise Exception(f"No matching {port_type} ports found with keyword '{name_match}'")
+
+    def load_action_map(self, path):
+        with open(path, "r") as f:
+            data = json.load(f)
+
+        note_map = {}
+        cc_map = {}
+
+        for entry in data:
+            mapping = MidiMapping(
+                name=entry["name"],
+                type=entry.get("type", "note"),
+                channel=entry.get("channel"),
+                note=entry.get("note"),
+                controller=entry.get("controller"),
+                toggle=entry.get("toggle", False),
+                callback=self.callback_registry.get(entry.get("callback")),
+                easing=entry.get("easing"),
+                hold_callback=self.callback_registry.get(entry.get("hold_callback")),
+                hold_repeat_interval=entry.get("hold_repeat_interval")
+            )
+
+            if mapping.type == "note":
+                note_map[(mapping.channel, mapping.note)] = mapping
+            elif mapping.type == "cc":
+                cc_map[(mapping.channel, mapping.controller)] = mapping
+
+        self.note_map = note_map
+        self.cc_map = cc_map
+        return list(note_map.values()) + list(cc_map.values())  # Optional: full list if needed
+
+
+    def set_leds(self, targets):
+        for target in targets:
+            channel = target["channel"]
+            note = target["note"]
+            value = target.get("value", 127)
+            self.midi_out.send_message([0x90 + channel, note, value])
+
+
+    def handle_midi_message(self, message):
+        values, delta_time = message
+        if len(values) < 3:
+            logging.warning(f"Received invalid MIDI message: {values}")
+            return
+
+        status, data1, value = values
+        msg_type = status & 0xF0
+        channel = status & 0x0F
+
+        mapping = None
+        if msg_type in (0x90, 0x80):  # Note On/Off
+            mapping = self.note_map.get((channel, data1))
+        elif msg_type == 0xB0:  # Control Change
+            mapping = self.cc_map.get((channel, data1))
+
+        if mapping:
+            mapping.handle((status, data1, value), self.midi_out)
+        else:
+            logging.debug(f"No mapping for channel {channel}, msg_type {hex(msg_type)}, data1 {data1}")
+
+    
+
+def load_controllers(config_file="controllers_config.json", callback_registry=None):
+    with open(config_file, "r") as f:
+        controller_configs = json.load(f)
+
+    controllers = []
+    for config in controller_configs:
+        controller = MidiController(config, callback_registry)
+        controllers.append(controller)
+    return controllers

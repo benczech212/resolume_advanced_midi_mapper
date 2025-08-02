@@ -1,0 +1,7 @@
+[
+  {
+    "name": "Launchpad Mini",
+    "layout_map": "layout_maps/launchpad_mini.json",
+    "action_map": "action_maps/launchpad_mini_actions.json"
+  }
+]

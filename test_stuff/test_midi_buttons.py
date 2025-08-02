@@ -1,6 +1,6 @@
 import rtmidi
 import time
-
+import json
 controller_name = "Launchpad Mini"
 
 def select_port_by_name(midi, port_type="input", keyword=controller_name):
@@ -33,12 +33,33 @@ def main():
                 # Check only that it's a Note On message (status 0x90–0x9F)
                 if 0x90 <= status <= 0x9F and velocity > 0:
                     print(f"Button {note} pressed. Velocity: {velocity}")
-                    print("💡 Cycling velocity from 0 to 127...")
-                    for new_velocity in range(128):
-                        midi_out.send_message([0x90, note, new_velocity])
-                        # print(f"✅ Sent velocity {new_velocity} to Note {note}")
-                        time.sleep(0.02)  # Small delay to see the effect
-            time.sleep(0.01)
+
+                    # Step through velocities quickly
+                    print("Stepping through velocities 1-127 quickly...")
+                    for v in range(1, 128):
+                        midi_out.send_message([status, note, v])
+                        time.sleep(0.03)  # 30ms per step for visibility
+
+                    # Prompt user for each velocity
+                    velocity_map = {}
+                    for v in range(1, 128):
+                        midi_out.send_message([status, note, v])
+                        color = input(f"Enter color for Note {note} at Velocity {v} (or 'skip' to skip): ").strip()
+                        if color.lower() == 'skip':
+                            continue
+                        orig_color = color
+                        count = 1
+                        while color in velocity_map:
+                            count += 1
+                            color = f"{orig_color}_{count}"
+                        velocity_map[color] = v
+                        print(f"✅ Color '{color}' saved for Note {note} at Velocity {v}")
+
+                    # Save map to file
+                    with open('velocity_map.json', 'w') as f:
+                        json.dump(velocity_map, f, indent=2)
+                    print("Velocity map saved to velocity_map.json")
+                    break  # Exit after one button mapping
 
     except KeyboardInterrupt:
         print("Exiting...")

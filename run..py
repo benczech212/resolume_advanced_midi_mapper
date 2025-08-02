@@ -89,21 +89,21 @@ open_named_port(midi_out, MIDI_CONTROLLER_NAME, "MIDI Out")
 
 osc_client = udp_client.SimpleUDPClient(RESOLUME_HOST, RESOLUME_OSC_PORT)
 
-
-note_mappings = [
-    {"name": "Effect Button",       "note": 48, "callback": effect_button_callback,         "toggle": True},
-    {"name": "Color Button",        "note": 49, "callback": color_button_callback,          "toggle": True},
-    {"name": "Activator Button",    "note": 50, "callback": activator_button_callback,       "toggle": True},
-    {"name": "Fill 20% Button",   "note": 57, "callback": lambda state, midi_out, channel: fill_button_callback(state,midi_out, channel, fill_value=0.2), "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
-    {"name": "Fill 40% Button",   "note": 56, "callback": lambda state, midi_out, channel: fill_button_callback(state,midi_out, channel, fill_value=0.4), "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
-    {"name": "Fill 60% Button",   "note": 55, "callback": lambda state, midi_out, channel: fill_button_callback(state,midi_out, channel, fill_value=0.6), "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
-    {"name": "Fill 80% Button",   "note": 54, "callback": lambda state, midi_out, channel: fill_button_callback(state,midi_out, channel, fill_value=0.8), "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
-    {"name": "Fill 100% Button",   "note": 53, "callback": lambda state, midi_out, channel: fill_button_callback(state,midi_out, channel, fill_value=1.0), "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
-    # {"name": "Activator Button",    "note": 57, "callback": activator_button_callback,       "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
-    # {"name": "Activator Hold",    "note": 50, "callback": activator_button_callback,       "toggle": False},
-    {"name": "Stop Clip Button",    "note": 52, "callback": stop_clip_callback,              "toggle": True},
-    # {"name": "Transform Button",    "note": 57, "callback": transform_button_callback,       "toggle": True},
-]
+note_mappings = []
+# note_mappings = [
+#     {"name": "Effect Button",       "note": 48, "callback": effect_button_callback,         "toggle": True},
+#     {"name": "Color Button",        "note": 49, "callback": color_button_callback,          "toggle": True},
+#     {"name": "Activator Button",    "note": 50, "callback": activator_button_callback,       "toggle": True},
+#     {"name": "Fill 20% Button",   "note": 57, "callback": lambda state, midi_out, channel: fill_button_callback(state,midi_out, channel, fill_value=0.2), "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
+#     {"name": "Fill 40% Button",   "note": 56, "callback": lambda state, midi_out, channel: fill_button_callback(state,midi_out, channel, fill_value=0.4), "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
+#     {"name": "Fill 60% Button",   "note": 55, "callback": lambda state, midi_out, channel: fill_button_callback(state,midi_out, channel, fill_value=0.6), "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
+#     {"name": "Fill 80% Button",   "note": 54, "callback": lambda state, midi_out, channel: fill_button_callback(state,midi_out, channel, fill_value=0.8), "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
+#     {"name": "Fill 100% Button",   "note": 53, "callback": lambda state, midi_out, channel: fill_button_callback(state,midi_out, channel, fill_value=1.0), "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
+#     # {"name": "Activator Button",    "note": 57, "callback": activator_button_callback,       "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
+#     # {"name": "Activator Hold",    "note": 50, "callback": activator_button_callback,       "toggle": False},
+#     {"name": "Stop Clip Button",    "note": 52, "callback": stop_clip_callback,              "toggle": True},
+#     # {"name": "Transform Button",    "note": 57, "callback": transform_button_callback,       "toggle": True},
+# ]
 
 midi_mappings = []
 # Repeated mappings
@@ -111,18 +111,20 @@ for channel, group in channel_group_mapping.items():
     group_name = group["group_name"]
     group_index = group["group_index"]
     for mapping in note_mappings:
+
+        pass
         
-        midi_mappings.append(MidiMapping(
-            name=f"{group_name} {mapping['name']}",
-            type=mapping.get("type", "note"),
-            channel=channel,
-            note= mapping["note"],
-            toggle=mapping.get("toggle", False),
-            callback=mapping.get("callback", None)
-            , easing=mapping.get("easing", None),
-            hold_callback=mapping.get("hold_callback", None),
-            hold_repeat_interval=mapping.get("hold_repeat_interval", None)
-        ))
+        # midi_mappings.append(MidiMapping(
+        #     name=f"{group_name} {mapping['name']}",
+        #     type=mapping.get("type", "note"),
+        #     channel=channel,
+        #     note= mapping["note"],
+        #     toggle=mapping.get("toggle", False),
+        #     callback=mapping.get("callback", None)
+        #     , easing=mapping.get("easing", None),
+        #     hold_callback=mapping.get("hold_callback", None),
+        #     hold_repeat_interval=mapping.get("hold_repeat_interval", None)
+        # ))
         
 
 current_state = {

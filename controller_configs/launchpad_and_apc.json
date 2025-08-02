@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Launchpad Mini",
+    "layout_map": "layout_maps/launchpad_mini.json",
+    "action_map": "action_maps/launchpad_mini_actions.json"
+  },
+  {
+    "name": "Akai APC40",
+    "layout_map": "layout_maps/apc40_mk2.json",
+    "action_map": "action_maps/apc40_mk2_actions.json"
+  }
+]
