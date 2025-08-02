@@ -1,4 +1,4 @@
-
+from czech_mapper import *
 from pythonosc import udp_client
 import logging
 import time
@@ -14,18 +14,21 @@ RESOLUME_OSC_PORT = 7000
 
 # callbacks
 def test_callback(state, midi_out, channel):
-    print(f"Button {'pressed' if state else 'released'} on channel {channel}")
+    # print(f"Button {'pressed' if state else 'released'} on channel {channel}")
+    pass
 
 
 
 
 def toggle_activator(state, midi_out, channel):
-    print(f"Toggling activator. State: {state}, Channel: {channel}")
+    pass
+    # print(f"Toggling activator. State: {state}, Channel: {channel}")
     # Do something here with Resolume or MIDI
 
 
 def test_hold_callback(state, midi_out, channel):
-    print(f"Hold callback triggered. State: {state}, Channel: {channel}")
+    pass
+    # print(f"Hold callback triggered. State: {state}, Channel: {channel}")
     # Do something here with Resolume or MIDI
 
 # Automatically load all functions from this module
@@ -34,7 +37,8 @@ callback_registry = {
     for name, func in globals().items()
     if callable(func) and not name.startswith("_")
 }
-from czech_mapper import *
+
+
 
 setup_logging(LOG_LEVEL,RESOLUME_HOST,RESOLUME_OSC_PORT,RESOLUME_HTTP_PORT)
 
