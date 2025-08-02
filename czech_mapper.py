@@ -80,6 +80,9 @@ class MidiMapping:
                 press_start_times[key] = now
                 self.hold_triggered = False
                 self._start_hold_thread(key, midi_out)
+                # For non-toggle mappings, call callback immediately on press
+                if not self.toggle and self.callback:
+                    self.callback(True, midi_out, self.channel)
             # Note Off
             elif msg_type == 0x80 or (msg_type == 0x90 and value == 0):
                 start_time = press_start_times.pop(key, None)
@@ -89,14 +92,18 @@ class MidiMapping:
                     if self.hold_triggered:
                         return
                     if self.toggle:
+                        # Toggle state on release
                         self.state = not self.state
                         if self.callback:
                             self.callback(self.state, midi_out, self.channel)
-                    elif self.callback:
-                        self.callback(False, midi_out, self.channel)
+                    else:
+                        # For non-toggle, call callback on release with False
+                        if self.callback:
+                            self.callback(False, midi_out, self.channel)
         elif self.type == 'cc' and msg_type == 0xB0:
             if self.callback:
                 self.callback(value, midi_out, self.channel, self.easing)
+
 
 
 def setup_logging(log_level, resolume_host, resolume_osc_port, resolume_http_port):

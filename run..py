@@ -159,37 +159,38 @@ def launchpad_bpm_led_loop(midi_out: rtmidi.MidiOut, stop_event: threading.Event
 
 
 # === Controller Configurations ===
+# === Controller Configurations ===
 def build_controller_configs() -> Dict[str, ControllerConfig]:
     """Construct ControllerConfig instances for the APC and Launchpad."""
+    # Base note mappings common to both controllers
     base_note_mappings: List[ActionMapping] = [
-        ActionMapping(name="Effect Button", note=48, toggle=False, callback=effect_button_callback),
-        ActionMapping(name="Color Button", note=49, toggle=True, callback=color_button_callback),
-        ActionMapping(name="Activator Button", note=50, toggle=True, callback=activator_button_callback),
-        ActionMapping(name="Fill 20% Button", note=57, toggle=True, callback=lambda s, m, ch: fill_button_callback(s, m, ch, 0.2), hold_callback=transform_button_callback),
-        ActionMapping(name="Fill 40% Button", note=56, toggle=True, callback=lambda s, m, ch: fill_button_callback(s, m, ch, 0.4), hold_callback=transform_button_callback),
-        ActionMapping(name="Fill 60% Button", note=55, toggle=True, callback=lambda s, m, ch: fill_button_callback(s, m, ch, 0.6), hold_callback=transform_button_callback),
-        ActionMapping(name="Fill 80% Button", note=54, toggle=True, callback=lambda s, m, ch: fill_button_callback(s, m, ch, 0.8), hold_callback=transform_button_callback),
-        ActionMapping(name="Fill 100% Button", note=53, toggle=True, callback=lambda s, m, ch: fill_button_callback(s, m, ch, 1.0), hold_callback=transform_button_callback),
-        ActionMapping(name="Stop Clip Button", note=52, toggle=True, callback=stop_clip_callback),
+        # For APC hardware the buttons already act as toggles, so set toggle=False to avoid double toggling
+        ActionMapping(name="Effect Button",    note=48, toggle=False, callback=effect_button_callback),
+        ActionMapping(name="Color Button",     note=49, toggle=False, callback=color_button_callback),
+        ActionMapping(name="Activator Button", note=50, toggle=False, callback=activator_button_callback),
+        ActionMapping(name="Fill 20% Button",  note=57, toggle=True,  callback=lambda s,m,ch: fill_button_callback(s, m, ch, 0.2), hold_callback=transform_button_callback),
+        ActionMapping(name="Fill 40% Button",  note=56, toggle=True,  callback=lambda s,m,ch: fill_button_callback(s, m, ch, 0.4), hold_callback=transform_button_callback),
+        ActionMapping(name="Fill 60% Button",  note=55, toggle=True,  callback=lambda s,m,ch: fill_button_callback(s, m, ch, 0.6), hold_callback=transform_button_callback),
+        ActionMapping(name="Fill 80% Button",  note=54, toggle=True,  callback=lambda s,m,ch: fill_button_callback(s, m, ch, 0.8), hold_callback=transform_button_callback),
+        ActionMapping(name="Fill 100% Button", note=53, toggle=True,  callback=lambda s,m,ch: fill_button_callback(s, m, ch, 1.0), hold_callback=transform_button_callback),
+        ActionMapping(name="Stop Clip Button", note=52, toggle=True,  callback=stop_clip_callback),
     ]
 
-    # APC uses Resolume channel mapping
+    # APC configuration – uses the base mappings only
     apc_config = ControllerConfig(
         name="APC",
         midi_name="APC",
         action_mappings=list(base_note_mappings),
-        use_channel_mapping=True,
     )
 
-    # Launchpad does not use Resolume channel mapping
+    # Launchpad configuration – includes base mappings and extra actions
     launchpad_config = ControllerConfig(
         name="Launchpad",
         midi_name="Launchpad",
         action_mappings=list(base_note_mappings),
-        use_channel_mapping=False,
     )
-    # Add Launchpad-specific actions
-    launchpad_config.add_action(ActionMapping(name="BPM Tap", note=120, toggle=False, callback=bpm_tap_callback))
+    # Additional Launchpad actions
+    launchpad_config.add_action(ActionMapping(name="BPM Tap",    note=120, toggle=False, callback=bpm_tap_callback))
     launchpad_config.add_action(ActionMapping(name="Resync Phase", note=104, toggle=False, callback=resync_phase_callback))
 
     # Example location mappings for Launchpad: map channels/notes to x/y
@@ -198,6 +199,7 @@ def build_controller_configs() -> Dict[str, ControllerConfig]:
             launchpad_config.set_location(ch, note, x=i, y=ch)
 
     return {"APC": apc_config, "Launchpad": launchpad_config}
+
 
 
 def build_midi_mappings(config: ControllerConfig) -> List[MidiMapping]:
@@ -274,20 +276,35 @@ def controller_event_loop(name: str, midi_in: rtmidi.MidiIn, midi_out: rtmidi.Mi
             msg = midi_in.get_message()
             if msg:
                 message, _delta = msg
-                # Log all incoming messages (note presses and CCs) even if they have no mapping
                 status, data1, value = message
                 msg_type = status & 0xF0
                 channel = status & 0x0F
+                handled = False
+
+                # Note-On or Control Change with value > 0 indicates a press
                 if (msg_type == 0x90 and value > 0) or (msg_type == 0xB0 and value > 0):
-                    message_str = f"🎹 {name} pressed: channel {channel}, id {data1}, value {value}"
-                    logging.info(message_str)
+                    msg_desc = f"🎹 {name} pressed: channel {channel}, id {data1}, value {value}"
+                    print(msg_desc)
+                    logging.info(msg_desc)
+                    handled = True
+
                 # Dispatch to any matching mappings
                 for m in mappings:
                     if m.matches(message):
                         m.handle(message, midi_out)
+                        handled = True
+
+                # Print any other messages (note-off, value 0 messages, system messages) for debugging
+                if not handled:
+                    msg_hex = f"0x{status:02X}"
+                    debug_msg = f"🔍 {name} other MIDI message: status {msg_hex}, data1 {data1}, value {value}, channel {channel}"
+                    print(debug_msg)
+                    logging.debug(debug_msg)
+
             time.sleep(0.01)
     except KeyboardInterrupt:
         logging.info(f"🛑 Event loop for {name} interrupted")
+
 
 
 if __name__ == "__main__":
