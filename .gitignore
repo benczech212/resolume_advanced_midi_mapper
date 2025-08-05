@@ -1,1 +1,4 @@
 log/*.log
+__pycache__/controller_config.cpython-311.pyc
+__pycache__/czech_mapper.cpython-311.pyc
+__pycache__/resolume_http_api.cpython-311.pyc

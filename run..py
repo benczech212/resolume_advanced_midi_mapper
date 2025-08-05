@@ -165,9 +165,9 @@ def build_controller_configs() -> Dict[str, ControllerConfig]:
     # Base note mappings common to both controllers
     base_note_mappings: List[ActionMapping] = [
         # For APC hardware the buttons already act as toggles, so set toggle=False to avoid double toggling
-        ActionMapping(name="Effect Button",    note=48, toggle=False, callback=effect_button_callback),
-        ActionMapping(name="Color Button",     note=49, toggle=False, callback=color_button_callback),
-        ActionMapping(name="Activator Button", note=50, toggle=False, callback=activator_button_callback),
+        ActionMapping(name="Effect Button",    note=48, toggle=False, callback=effect_button_callback, status_as_state=True),
+        ActionMapping(name="Color Button",     note=49, toggle=False, callback=color_button_callback, status_as_state=True),
+        ActionMapping(name="Activator Button", note=50, toggle=False, callback=activator_button_callback, status_as_state=True),
         ActionMapping(name="Fill 20% Button",  note=57, toggle=True,  callback=lambda s,m,ch: fill_button_callback(s, m, ch, 0.2), hold_callback=transform_button_callback),
         ActionMapping(name="Fill 40% Button",  note=56, toggle=True,  callback=lambda s,m,ch: fill_button_callback(s, m, ch, 0.4), hold_callback=transform_button_callback),
         ActionMapping(name="Fill 60% Button",  note=55, toggle=True,  callback=lambda s,m,ch: fill_button_callback(s, m, ch, 0.6), hold_callback=transform_button_callback),

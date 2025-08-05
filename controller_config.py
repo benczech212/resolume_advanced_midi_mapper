@@ -33,7 +33,7 @@ class ActionMapping:
         hold_repeat_interval: Interval in seconds for repeating hold callbacks.
         easing: Optional easing function name or callable for scaling values.
     """
-
+    
     name: str
     type: str = "note"
     channel: int = 0
@@ -44,6 +44,7 @@ class ActionMapping:
     hold_callback: Optional[Callable[..., None]] = None
     hold_repeat_interval: Optional[float] = None
     easing: Optional[Any] = None
+    status_as_state: bool = False  # when True, use the status byte for ON/OFF
 
 
 @dataclass

@@ -22,7 +22,7 @@ class MidiMapping:
 
     def __init__(self, name, type="note", channel=None, note=None, controller=None,
                  toggle=False, callback=None, easing=None, hold_callback=None,
-                 hold_repeat_interval=None):
+                 hold_repeat_interval=None, status_as_state=False):
         self.name = name
         self.type = type  # note or cc
         self.channel = channel
@@ -35,6 +35,7 @@ class MidiMapping:
         self.hold_callback = hold_callback
         self.hold_repeat_interval = hold_repeat_interval
         self.hold_triggered = False
+        self.status_as_state = status_as_state  # Use status byte for ON/OFF
 
     def matches(self, message):
         status, data1, _ = message
@@ -70,6 +71,15 @@ class MidiMapping:
         key = (self.channel, self.note)
 
         if self.type == 'note':
+            # If this mapping uses the status byte to convey state, interpret ON/OFF directly
+            if self.status_as_state:
+                if msg_type == 0x90:    # 0x90–0x9F = Note On on any channel
+                    if self.callback:
+                        self.callback(True, midi_out, self.channel)
+                elif msg_type == 0x80:  # 0x80–0x8F = Note Off on any channel
+                    if self.callback:
+                        self.callback(False, midi_out, self.channel)
+                return
             # Note On
             if msg_type == 0x90 and value > 0:
                 now = time.time()
