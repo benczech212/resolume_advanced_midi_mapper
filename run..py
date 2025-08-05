@@ -93,6 +93,8 @@ def activator_button_callback(state: bool, midi_out: rtmidi.MidiOut, channel: in
     # Turn on activator LED when playing
     current_state[channel].update_loop()
     logging.info(f"🎬 Playing next clip on channel {channel_name} ({channel})")
+    # send midi message to turn on activator LED
+    midi_out.send_message([0x90 + channel, 50, 127])  # Note On for activator LED
 
 
 def stop_clip_callback(state: bool, midi_out: rtmidi.MidiOut, channel: int) -> None:
@@ -165,9 +167,9 @@ def build_controller_configs() -> Dict[str, ControllerConfig]:
     # Base note mappings common to both controllers
     base_note_mappings: List[ActionMapping] = [
         # For APC hardware the buttons already act as toggles, so set toggle=False to avoid double toggling
-        ActionMapping(name="Effect Button",    note=48, toggle=False, callback=effect_button_callback, status_as_state=True),
-        ActionMapping(name="Color Button",     note=49, toggle=False, callback=color_button_callback, status_as_state=True),
-        ActionMapping(name="Activator Button", note=50, toggle=False, callback=activator_button_callback, status_as_state=True),
+        ActionMapping(name="Effect Button",    note=48, toggle=False, callback=effect_button_callback),
+        ActionMapping(name="Color Button",     note=49, toggle=False, callback=color_button_callback),
+        ActionMapping(name="Activator Button", note=50, toggle=False, callback=lambda s,m,ch: activator_button_callback(True, m, ch)),
         ActionMapping(name="Fill 20% Button",  note=57, toggle=True,  callback=lambda s,m,ch: fill_button_callback(s, m, ch, 0.2), hold_callback=transform_button_callback),
         ActionMapping(name="Fill 40% Button",  note=56, toggle=True,  callback=lambda s,m,ch: fill_button_callback(s, m, ch, 0.4), hold_callback=transform_button_callback),
         ActionMapping(name="Fill 60% Button",  note=55, toggle=True,  callback=lambda s,m,ch: fill_button_callback(s, m, ch, 0.6), hold_callback=transform_button_callback),

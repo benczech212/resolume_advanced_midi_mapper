@@ -22,7 +22,7 @@ class MidiMapping:
 
     def __init__(self, name, type="note", channel=None, note=None, controller=None,
                  toggle=False, callback=None, easing=None, hold_callback=None,
-                 hold_repeat_interval=None, status_as_state=False):
+                 hold_repeat_interval=None):
         self.name = name
         self.type = type  # note or cc
         self.channel = channel
@@ -35,7 +35,7 @@ class MidiMapping:
         self.hold_callback = hold_callback
         self.hold_repeat_interval = hold_repeat_interval
         self.hold_triggered = False
-        self.status_as_state = status_as_state  # Use status byte for ON/OFF
+        
 
     def matches(self, message):
         status, data1, _ = message
@@ -71,17 +71,8 @@ class MidiMapping:
         key = (self.channel, self.note)
 
         if self.type == 'note':
-            # If this mapping uses the status byte to convey state, interpret ON/OFF directly
-            if self.status_as_state:
-                if msg_type == 0x90:    # 0x90–0x9F = Note On on any channel
-                    if self.callback:
-                        self.callback(True, midi_out, self.channel)
-                elif msg_type == 0x80:  # 0x80–0x8F = Note Off on any channel
-                    if self.callback:
-                        self.callback(False, midi_out, self.channel)
-                return
-            # Note On
-            if msg_type == 0x90 and value > 0:
+            # Press: any 0x90–0x9F status
+            if msg_type == 0x90:
                 now = time.time()
                 last_time = last_press_times.get(key, 0)
                 if now - last_time < DEBOUNCE_INTERVAL:
@@ -90,26 +81,24 @@ class MidiMapping:
                 press_start_times[key] = now
                 self.hold_triggered = False
                 self._start_hold_thread(key, midi_out)
-                # For non-toggle mappings, call callback immediately on press
                 if not self.toggle and self.callback:
                     self.callback(True, midi_out, self.channel)
-            # Note Off
+
+            # Release: any 0x80–0x8F status or velocity 0
             elif msg_type == 0x80 or (msg_type == 0x90 and value == 0):
                 start_time = press_start_times.pop(key, None)
-                if key in hold_threads:
-                    hold_threads.pop(key, None)
+                hold_threads.pop(key, None)
                 if start_time:
-                    if self.hold_triggered:
-                        return
+                    # if self.hold_triggered:
+                    #     return
                     if self.toggle:
-                        # Toggle state on release
                         self.state = not self.state
                         if self.callback:
                             self.callback(self.state, midi_out, self.channel)
                     else:
-                        # For non-toggle, call callback on release with False
                         if self.callback:
                             self.callback(False, midi_out, self.channel)
+
         elif self.type == 'cc' and msg_type == 0xB0:
             if self.callback:
                 self.callback(value, midi_out, self.channel, self.easing)
@@ -234,7 +223,7 @@ class ControllerState:
 
     def pick_fill_layers(self):
         fill_layers_int = math.ceil(self.state["fill"] * self.total_fill_layers)
-        fill_layer_ids = [layer["layer_index"] for layer in layer_list if layer["group_index"] == self.group_index and layer["layer_type"] == "Fill Layer"]
+        fill_layer_ids = [layer["layer_index"] for layer in self.layer_list if layer["group_index"] == self.group_index and layer["layer_type"] == "Fill Layer"]
         if fill_layers_int == 0:
             logging.info(f"Channel {self.channel} ({self.group_name}) - No fill layers selected")
             return []
