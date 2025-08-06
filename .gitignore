@@ -1,1 +1,6 @@
-log/*.log
+**/*.log
+**/*.pyc
+**/__pycache__/**
+test_stuff/__pycache__/resolume_info_fetch.cpython-311.pyc
+__pycache__/resolume_http_api.cpython-311.pyc
+__pycache__/czech_mapper.cpython-311.pyc

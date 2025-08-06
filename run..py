@@ -12,7 +12,7 @@ LOG_LEVEL = logging.DEBUG
 RESOLUME_HOST = "192.168.4.71"
 RESOLUME_HTTP_PORT = 8080
 RESOLUME_OSC_PORT = 7000
-MIDI_CONTROLLER_NAME = "Launchpad"
+MIDI_CONTROLLER_NAME = "APC"
 
 NAME_TO_CHANNEL = {
     "FFT": 0,
@@ -84,6 +84,16 @@ channel_group_mapping, layer_list, group_list = get_channel_group_mapping(RESOLU
 
 midi_in = rtmidi.MidiIn()
 midi_out = rtmidi.MidiOut()
+
+def open_named_port(midi_port, port_name, direction):
+    available_ports = midi_port.get_ports()
+    for i, name in enumerate(available_ports):
+        if port_name in name:
+            midi_port.open_port(i)
+            logging.info(f"Opened {direction} port: {name}")
+            return
+    raise RuntimeError(f"Could not find {direction} port with name '{port_name}'")
+
 open_named_port(midi_in, MIDI_CONTROLLER_NAME, "MIDI In")
 open_named_port(midi_out, MIDI_CONTROLLER_NAME, "MIDI Out")
 

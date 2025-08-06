@@ -4,7 +4,7 @@ import logging
 import os
 import math
 import rtmidi
-from resolume_http_api import *
+from libraries.resolume_http_api import *
 
 
 last_press_times = {}  # (channel, note) -> last_time
@@ -175,36 +175,41 @@ class ControllerState:
             "group_index": self.group_index,
             "state": self.state
         }
-
+    def set_leds(self, targets):
+        for target in targets:
+            channel = target["channel"]
+            note = target["note"]
+            value = target.get("value", 127)
+            self.midi_out.send_message([0x90 + channel, note, value])
     def update_loop(self):
         logging.debug(f"Updating LEDs for channel {self.channel} ({self.group_name})")
         if self.state["playing"]: 
-            set_leds(self.midi_out, [{"channel": self.channel, "note": 60, "value": 127}])   # Set activator LED to Green
-            set_leds(self.midi_out, [{"channel": self.channel, "note": 52, "value": 2}])     # Set stop clip LED to Blinking Green
+            self.set_leds([{"channel": self.channel, "note": 60, "value": 127}])   # Set activator LED to Green
+            self.set_leds([{"channel": self.channel, "note": 52, "value": 2}])     # Set stop clip LED to Blinking Green
         else:
-            set_leds(self.midi_out, [{"channel": self.channel, "note": 60, "value": 0}])     # set activator LED to Off
-            set_leds(self.midi_out, [{"channel": self.channel, "note": 52, "value": 0}])     # set stop clip LED to Off  
+            self.set_leds([{"channel": self.channel, "note": 60, "value": 0}])     # set activator LED to Off
+            self.set_leds([{"channel": self.channel, "note": 52, "value": 0}])     # set stop clip LED to Off  
 
-        if self.state["color"]: set_leds(self.midi_out, [{"channel": self.channel, "note": 61, "value": 127}])
-        else: set_leds(self.midi_out, [{"channel": self.channel, "note": 61, "value": 0}])
+        if self.state["color"]: self.set_leds([{"channel": self.channel, "note": 61, "value": 127}])
+        else: self.set_leds([{"channel": self.channel, "note": 61, "value": 0}])
 
-        if self.state["effect"]: set_leds(self.midi_out, [{"channel": self.channel, "note": 62, "value": 127}])
-        else: set_leds(self.midi_out, [{"channel": self.channel, "note": 62, "value": 0}])
+        if self.state["effect"]: self.set_leds([{"channel": self.channel, "note": 62, "value": 127}])
+        else: self.set_leds([{"channel": self.channel, "note": 62, "value": 0}])
 
         transform_color = 5  if self.state["transform"]      else  1
         fill_layer_int = int(self.state["fill"] * self.total_fill_layers)
         for i in range(fill_layer_int):
             if self.state["playing"]:
-                set_leds(self.midi_out, [{"channel": self.channel, "note": 57 - i, "value": transform_color}])
+                self.set_leds([{"channel": self.channel, "note": 57 - i, "value": transform_color}])
             else:
-                set_leds(self.midi_out, [{"channel": self.channel, "note": 57 - i, "value": 0}])
+                self.set_leds([{"channel": self.channel, "note": 57 - i, "value": 0}])
         for j in range(5- fill_layer_int):
-            set_leds(self.midi_out, [{"channel": self.channel, "note": 57 - fill_layer_int - j, "value": 0}])
+            self.set_leds([{"channel": self.channel, "note": 57 - fill_layer_int - j, "value": 0}])
 
     def pick_fill_layers(self):
         fill_layers_int = math.ceil(self.state["fill"] * self.total_fill_layers)
 
-        fill_layer_ids = [ layer["layer_index"] for layer in layer_list if layer["group_index"] == self.group_index and layer["layer_type"] == "Fill Layer"]
+        fill_layer_ids = [ layer["layer_index"] for layer in self.layer_list if layer["group_index"] == self.group_index and layer["layer_type"] == "Fill Layer"]
         if fill_layers_int == 0:
             fill_layers = []
             logging.info(f"Channel {self.channel} ({self.group_name}) - No fill layers selected")
