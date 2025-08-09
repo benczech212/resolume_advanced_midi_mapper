@@ -1,0 +1,65 @@
+osc:
+  tx_host: "127.0.0.1"
+  tx_port: 7000
+  rx_host: "0.0.0.0"
+  rx_port: 7001
+  
+http_api:
+  host: "127.0.0.1"
+  port: 8080        # Resolume HTTP API default
+  timeout: 2.0
+  refresh_seconds: 5.0
+
+
+midi:
+  launchpad_in_match: "Launchpad"
+  launchpad_out_match: "Launchpad"
+  apc40_in_match: "APC40"
+  apc40_out_match: "APC40"
+
+enable_joystick: true
+joystick_index: 0
+enable_launchpad: true
+enable_apc40: true
+reflect_hz: 30.0
+
+group_to_deck_mapping:
+  "Group A": "deck_a"
+  "Group B": "deck_b"
+
+led_map:
+  launchpad_deck_notes:
+    deck_a: 64
+    deck_b: 65
+  apc_deck_notes:
+    deck_a: 40
+    deck_b: 41
+
+bindings:
+  - device: "joystick"
+    control: "button_0"
+    action: "toggle_effects"
+    deck: "deck_a"
+    edge: "press"
+
+  - device: "joystick"
+    control: "axis_2"
+    action: "set_fill"
+    deck: "deck_a"
+
+  - device: "launchpad"
+    control: ["note", 64]
+    action: "toggle_colors"
+    deck: "deck_b"
+    edge: "press"
+
+  - device: "apc40"
+    control: ["cc", 21]
+    action: "set_fill"
+    deck: "deck_b"
+
+  - device: "launchpad"
+    control: ["note", 65]
+    action: "stop_deck"
+    deck: "deck_b"
+    edge: "release"
