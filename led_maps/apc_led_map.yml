@@ -1,0 +1,76 @@
+device: apc40
+
+# Global default/fallback colors if a note doesn't override.
+defaults:
+  colors:
+    off: 0
+    on: 1     # treated as "green" for 1/2/6-color, but you can still call "green" explicitly
+    green: 1
+    red: 3
+    yellow: 5
+    green blink: 2
+    red blink: 4
+    yellow blink: 6
+
+# Velocity lookup per LED type (your reference, editable).
+velocity_map:
+  "6 color":
+    off: 0
+    green: 1
+    green blink: 2
+    red: 3
+    red blink: 4
+    yellow: 5
+    yellow blink: 6
+  "2 color":
+    off: 0
+    green: 1
+    green blink: 2
+  "1 color":
+    off: 0
+    green: 1
+
+# Declare each note’s LED hardware type, and (optionally) override colors.
+# Your mapping:
+#   53–57: 6 color
+#   52:    2 color
+#   48–50: 1 color
+notes:
+  "48":    # effects toggle
+    led_type: "1 color"
+    colors: { off: 0, green: 1 }   # "on" will also resolve to green
+  "49":    # colors toggle
+    led_type: "1 color"
+    colors: { off: 0, green: 1 }
+  "50":    # transform toggle
+    led_type: "1 color"
+    colors: { off: 0, green: 1 }
+
+  "52":    # stop deck
+    led_type: "2 color"
+    colors:
+      off: 0
+      green: 1
+      green blink: 2
+
+  "57":    # fill 0%
+    led_type: "6 color"
+    colors:
+      off: 0
+      green: 1
+      yellow: 5
+      red: 3
+  "56":    # fill 25%
+    led_type: "6 color"
+    colors: { off: 0, green: 1, yellow: 5, red: 3 }
+  "55":    # fill 50%
+    led_type: "6 color"
+    colors: { off: 0, green: 1, yellow: 5, red: 3 }
+  "54":    # fill 75%
+    led_type: "6 color"
+    colors: { off: 0, green: 1, yellow: 5, red: 3 }
+  "53":    # fill 100%
+    led_type: "6 color"
+    colors: { off: 0, green: 1, yellow: 5, red: 3 }
+
+ccs: {}

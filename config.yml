@@ -23,43 +23,133 @@ enable_launchpad: true
 enable_apc40: true
 reflect_hz: 30.0
 
+
+
+devices:
+  apc40:
+    kind: "midi"
+    in_match: "APC40"
+    out_match: "APC40"
+    # Human MIDI channels that control decks (2–7). 0 and 1 are unmapped.
+    channel_to_deck:
+      2: stage
+      3: background
+      4: wires
+      5: merkaba
+      6: flower
+      7: top
+
+# No Launchpad mappings yet (intentionally blank)
+# devices:
+#   launchpad:
+#     kind: "midi"
+#     in_match: "Launchpad"
+#     out_match: "Launchpad"
+
+templates:
+  per_deck:
+    # APC40 per-deck note template (repeated for each mapped channel->deck)
+    - device: apc40
+      rules:
+        # Toggles
+        - control: ["note", 48, "{channel}"]
+          action: toggle_effects
+          deck: "{deck}"
+          edge: press
+        - control: ["note", 49, "{channel}"]
+          action: toggle_colors
+          deck: "{deck}"
+          edge: press
+        - control: ["note", 50, "{channel}"]
+          action: toggle_transform
+          deck: "{deck}"
+          edge: press
+
+        # Fill presets
+        - control: ["note", 57, "{channel}"]
+          action: set_fill
+          deck: "{deck}"
+          fixed_value: 0.0
+          edge: press
+        - control: ["note", 56, "{channel}"]
+          action: set_fill
+          deck: "{deck}"
+          fixed_value: 0.25
+          edge: press
+        - control: ["note", 55, "{channel}"]
+          action: set_fill
+          deck: "{deck}"
+          fixed_value: 0.5
+          edge: press
+        - control: ["note", 54, "{channel}"]
+          action: set_fill
+          deck: "{deck}"
+          fixed_value: 0.75
+          edge: press
+        - control: ["note", 53, "{channel}"]
+          action: set_fill
+          deck: "{deck}"
+          fixed_value: 1.0
+          edge: press
+
+        # Stop deck
+        - control: ["note", 52, "{channel}"]
+          action: stop_deck
+          deck: "{deck}"
+          edge: press
+
+  # Non-deck-specific APC (channel 0) globals
+  global:
+    - device: apc40
+      control: ["note", 81, 0]     # status 144 == note_on on channel 0
+      action: stop_all_decks
+      edge: press
+
+    - device: apc40
+      control: ["note", 91, 0]
+      action: start_autopilot
+      edge: press
+
+    - device: apc40
+      control: ["note", 92, 0]
+      action: stop_autopilot
+      edge: press
+
+    - device: apc40
+      control: ["note", 93, 0]
+      action: toggle_record
+      edge: press
+
+    - device: apc40
+      control: ["note", 99, 0]
+      action: tempo_tap
+      edge: press
+
+    - device: apc40
+      control: ["note", 101, 0]
+      action: nudge_minus
+      edge: press
+
+    - device: apc40
+      control: ["note", 100, 0]
+      action: nudge_plus
+      edge: press
+
+    - device: apc40
+      control: ["note", 98, 0]
+      action: bpm_resync
+      edge: press
+
+    - device: apc40
+      control: ["note", 65, 0]
+      action: toggle_metronome
+      edge: press
+
+# Your exact Resolume group -> deck mapping
 group_to_deck_mapping:
-  "Group A": "deck_a"
-  "Group B": "deck_b"
-
-led_map:
-  launchpad_deck_notes:
-    deck_a: 64
-    deck_b: 65
-  apc_deck_notes:
-    deck_a: 40
-    deck_b: 41
-
-bindings:
-  - device: "joystick"
-    control: "button_0"
-    action: "toggle_effects"
-    deck: "deck_a"
-    edge: "press"
-
-  - device: "joystick"
-    control: "axis_2"
-    action: "set_fill"
-    deck: "deck_a"
-
-  - device: "launchpad"
-    control: ["note", 64]
-    action: "toggle_colors"
-    deck: "deck_b"
-    edge: "press"
-
-  - device: "apc40"
-    control: ["cc", 21]
-    action: "set_fill"
-    deck: "deck_b"
-
-  - device: "launchpad"
-    control: ["note", 65]
-    action: "stop_deck"
-    deck: "deck_b"
-    edge: "release"
+  "Stage": "stage"
+  "Background": "background"
+  "Wire Trace": "wires"
+  "Merkaba": "merkaba"
+  "Flower": "flower"
+  "Top": "top"

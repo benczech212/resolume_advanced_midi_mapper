@@ -1,0 +1,50 @@
+device: launchpad
+defaults:
+  colors:
+    off: 0
+
+    # GREEN
+    green_dim: 21
+    green_med: 60
+    green_bright: 88
+
+    # YELLOW
+    yellow_dim: 45
+    yellow_med: 100
+    yellow_bright: 118
+
+    # RED
+    red_dim: 5
+    red_med: 64
+    red_bright: 127
+
+# Per-note overrides (optional). Remove or extend as needed.
+notes:
+  "64":
+    colors:
+      off: 0
+      green_dim: 21
+      green_med: 60
+      green_bright: 88
+      yellow_dim: 45
+      yellow_med: 100
+      yellow_bright: 118
+      red_dim: 5
+      red_med: 64
+      red_bright: 127
+
+  "65":
+    colors:
+      off: 0
+      green_dim: 21
+      green_med: 60
+      green_bright: 88
+      yellow_dim: 45
+      yellow_med: 100
+      yellow_bright: 118
+      red_dim: 5
+      red_med: 64
+      red_bright: 127
+
+# Launchpad usually doesn’t use CC for LED, but you can define them if needed.
+ccs: {}

@@ -20,6 +20,7 @@ class DeckState:
     playing: bool = False
     effects: bool = False
     colors: bool = False
+    transform: bool = False         
     fill: float = 0.0  # 0..1
     last_changed: float = field(default_factory=time.time)
 
@@ -42,6 +43,11 @@ class DeckState:
         v = max(0.0, min(1.0, float(value)))
         if abs(self.fill - v) > 1e-6:
             self.fill = v
+            self.last_changed = time.time()
+
+    def set_transform(self, value: bool):
+        if self.transform != value:
+            self.transform = value
             self.last_changed = time.time()
 
 class DeckManager:
