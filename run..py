@@ -1,180 +1,129 @@
+"""
+This script reads input from a Logitech Extreme 3D Pro joystick using ``pygame``
+and forwards those values as Open Sound Control (OSC) messages for consumption
+by Resolume Wire or other OSC‑aware tools.  It depends on the helper
+modules added in the ``logitech_3d_pro_stuff`` branch of the
+``resolume_advanced_midi_mapper`` repository:
 
-from czech_mapper import *
-from pythonosc import udp_client
-import logging
+* ``libraries/logitech_3d_pro.py`` – provides a ``JoystickInput`` class that
+  handles deadzones and per‑axis envelope curves (linear, sine, exponential,
+  etc.)【519963677954088†L17-L46】.
+* ``libraries/resolume_osc_manager.py`` – exposes an ``OSCSender`` class
+  wrapping ``pythonosc`` to send axis, button and hat messages to a given
+  host/port.  It defines default OSC address patterns of the form
+  ``/czechb/joystick/axis/{axis_id}``, ``/czechb/joystick/button/{button_id}``
+  and ``/czechb/joystick/hat``【749634091509401†L13-L26】.
+
+To use this script, make sure ``pygame`` and ``python-osc`` are installed and
+the joystick is connected.  You can customise the OSC destination by
+adjusting the ``OSC_IP`` and ``OSC_PORT`` constants below.  When run, the
+script will send an OSC message whenever an axis moves beyond its deadzone
+or a button/hat state changes.
+"""
+
+import sys
 import time
-import os
-import rtmidi
-import math
+import pygame
 
-# === Configuration ===
-LOG_LEVEL = logging.DEBUG
-RESOLUME_HOST = "192.168.4.71"
-RESOLUME_HTTP_PORT = 8080
-RESOLUME_OSC_PORT = 7000
-MIDI_CONTROLLER_NAME = "APC"
+# Import helper classes from the ``libraries`` package.  These modules live
+# inside the ``logitech_3d_pro_stuff`` branch of ``resolume_advanced_midi_mapper``.
+from libraries.logitech_3d_pro import JoystickInput
+from libraries.resolume_osc_manager import OSCSender
 
-NAME_TO_CHANNEL = {
-    "FFT": 0,
-    "Stage Lighting": 1,
-    "Stage Effects": 2,
-    "Back Panel": 3,
-    "Wire Trace": 4,
-    "Merkaba": 5,
-    "Flower": 6,
-    "Top": 7
-}
+# ----------------------------------------------------------------------------
+# Configuration
+#
+# Adjust these values as needed for your network.  Resolume Arena/Avenue
+# defaults to listening for OSC messages on port 7000 on localhost.  If
+# you're running Resolume on a different machine or port, update these
+# accordingly.
 
+OSC_IP: str = "127.0.0.1"
+OSC_PORT: int = 8000
 
+# Minimum axis change required to send an update.  The built‑in
+# ``JoystickInput`` already enforces a deadzone and envelope; this threshold
+# simply reduces OSC traffic for tiny movements.  Set to 0 to always
+# transmit.
+AXIS_EPSILON: float = 0.01
 
+def init_joystick() -> pygame.joystick.Joystick:
+    """Initialise Pygame and return the first available joystick.
 
-
-# === Button Callbacks ===
-def effect_button_callback(state, midi_out, channel):
-    channel_name = channel_group_mapping.get(channel, {}).get("group_name", "Unknown")
-    logging.debug(f"Effect button {'pressed' if state else 'released'} on channel {channel_name} ID {channel}")
-    current_state[channel].update("effect", state)
-    
-
-def color_button_callback(state, midi_out, channel):
-    channel_name = channel_group_mapping.get(channel, {}).get("group_name", "Unknown")
-    logging.debug(f"Color button {'pressed' if state else 'released'} on channel {channel_name} ID {channel}")
-    current_state[channel].update("color", state)
-
-def activator_button_callback(state, midi_out, channel):
-    channel_name = channel_group_mapping.get(channel, {}).get("group_name", "Unknown")
-    logging.debug(f"Activator button {'pressed' if state else 'released'} on channel {channel_name} ID {channel}")
-    current_state[channel].update("playing", state)
-    logging.info(f"🎬 Playing next clip on channel {channel_name} ({channel})")
-    
-
-def stop_clip_callback(state, midi_out, channel):
-    channel_name = channel_group_mapping.get(channel, {}).get("group_name", "Unknown")
-    logging.info(f"Stop Clip button {'pressed' if state else 'released'} on channel {channel_name} ID {channel}")
-    current_state[channel].update("playing", False)
-    set_leds(midi_out, [{"channel": channel, "note": 50, "value": 0}])  # Set activator LED to Off
-    
-
-def transform_button_callback(state, midi_out, channel):
-    channel_name = channel_group_mapping.get(channel, {}).get("group_name", "Unknown")
-    state = not current_state[channel].state["transform"]
-    logging.info(f"Transform button {'pressed' if state else 'released'} on channel {channel_name} ID {channel}")
-    current_state[channel].update("transform", state)
-
-def stop_all_clips_callback(midi_out):
-    logging.info("Stopping all clips")
-    for channel in current_state:
-        current_state[channel].update("playing", False)
-        set_leds(midi_out, [{"channel": channel, "note": 50, "value": 0}])  # Set activator LED to Off
-
-def fill_button_callback(state, midi_out, channel, fill_value):
-    channel_name = channel_group_mapping.get(channel, {}).get("group_name", "Unknown")
-    logging.info(f"Fill button {'pressed' if state else 'released'} on channel {channel_name} ID {channel}")
-    current_state[channel].update("fill", fill_value)
-    if current_state[channel].total_fill_layers > 0:
-        current_state[channel].update("playing", True)
-        
-
-        
+    Exits the program if no joystick is detected.
+    """
+    pygame.init()
+    pygame.joystick.init()
+    if pygame.joystick.get_count() == 0:
+        print("No joystick detected.  Connect a joystick and try again.")
+        sys.exit(1)
+    joy = pygame.joystick.Joystick(0)
+    joy.init()
+    print(f"Connected joystick: {joy.get_name()}")
+    return joy
 
 
-# === Main Setup ===
-setup_logging(LOG_LEVEL, RESOLUME_HOST, RESOLUME_OSC_PORT, RESOLUME_HTTP_PORT)
-channel_group_mapping, layer_list, group_list = get_channel_group_mapping(RESOLUME_HOST, RESOLUME_HTTP_PORT,NAME_TO_CHANNEL)
+def main() -> None:
+    """Entry point for joystick → OSC forwarding.
 
-midi_in = rtmidi.MidiIn()
-midi_out = rtmidi.MidiOut()
+    Continuously polls the joystick for axis, button and hat state changes.
+    Axis values are pre‑processed via ``JoystickInput`` which applies
+    deadzones and envelope curves.  When a value changes beyond
+    ``AXIS_EPSILON``, or when a button/hat state toggles, an OSC message is
+    sent via ``OSCSender``.
+    """
+    # Set up joystick and helpers.
+    joy = init_joystick()
+    js_input = JoystickInput(joy)
+    osc_sender = OSCSender(ip=OSC_IP, port=OSC_PORT)
 
-def open_named_port(midi_port, port_name, direction):
-    available_ports = midi_port.get_ports()
-    for i, name in enumerate(available_ports):
-        if port_name in name:
-            midi_port.open_port(i)
-            logging.info(f"Opened {direction} port: {name}")
-            return
-    raise RuntimeError(f"Could not find {direction} port with name '{port_name}'")
+    # Configure deadzones/envelopes per axis if desired.  For example,
+    # alternate between sine‑out and exponential‑in on even/odd axes.  You can
+    # call js_input.set_deadzone(index, value) and js_input.set_envelope(index,
+    # name) before entering the loop.
+    for i in range(joy.get_numaxes()):
+        js_input.set_deadzone(i, 0.1)  # 10% deadzone
+        js_input.set_envelope(i, "sine_out" if i % 2 == 0 else "expo_in")
 
-open_named_port(midi_in, MIDI_CONTROLLER_NAME, "MIDI In")
-open_named_port(midi_out, MIDI_CONTROLLER_NAME, "MIDI Out")
+    # Track previous button and hat states to detect changes.
+    prev_buttons = [joy.get_button(i) for i in range(joy.get_numbuttons())]
+    prev_hat = joy.get_hat(0) if joy.get_numhats() > 0 else (0, 0)
 
-osc_client = udp_client.SimpleUDPClient(RESOLUME_HOST, RESOLUME_OSC_PORT)
+    try:
+        while True:
+            # Pump Pygame event queue to update joystick state.
+            pygame.event.pump()
 
-note_mappings = []
-# note_mappings = [
-#     {"name": "Effect Button",       "note": 48, "callback": effect_button_callback,         "toggle": True},
-#     {"name": "Color Button",        "note": 49, "callback": color_button_callback,          "toggle": True},
-#     {"name": "Activator Button",    "note": 50, "callback": activator_button_callback,       "toggle": True},
-#     {"name": "Fill 20% Button",   "note": 57, "callback": lambda state, midi_out, channel: fill_button_callback(state,midi_out, channel, fill_value=0.2), "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
-#     {"name": "Fill 40% Button",   "note": 56, "callback": lambda state, midi_out, channel: fill_button_callback(state,midi_out, channel, fill_value=0.4), "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
-#     {"name": "Fill 60% Button",   "note": 55, "callback": lambda state, midi_out, channel: fill_button_callback(state,midi_out, channel, fill_value=0.6), "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
-#     {"name": "Fill 80% Button",   "note": 54, "callback": lambda state, midi_out, channel: fill_button_callback(state,midi_out, channel, fill_value=0.8), "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
-#     {"name": "Fill 100% Button",   "note": 53, "callback": lambda state, midi_out, channel: fill_button_callback(state,midi_out, channel, fill_value=1.0), "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
-#     # {"name": "Activator Button",    "note": 57, "callback": activator_button_callback,       "toggle": True, "hold_callback": transform_button_callback, "hold_repeat_interval": None},
-#     # {"name": "Activator Hold",    "note": 50, "callback": activator_button_callback,       "toggle": False},
-#     {"name": "Stop Clip Button",    "note": 52, "callback": stop_clip_callback,              "toggle": True},
-#     # {"name": "Transform Button",    "note": 57, "callback": transform_button_callback,       "toggle": True},
-# ]
+            # Update axes via JoystickInput and send OSC for changes.
+            for axis_index in range(joy.get_numaxes()):
+                new_val = js_input.process_axis(axis_index)
+                # Only send if the processed value changed beyond the threshold.
+                if abs(new_val - js_input.state[axis_index]) > AXIS_EPSILON:
+                    osc_sender.send_axis(axis_index, new_val)
+                    js_input.state[axis_index] = new_val
 
-midi_mappings = []
-# Repeated mappings
-for channel, group in channel_group_mapping.items():
-    group_name = group["group_name"]
-    group_index = group["group_index"]
-    for mapping in note_mappings:
+            # Check button state changes.
+            for btn_index in range(joy.get_numbuttons()):
+                current = joy.get_button(btn_index)
+                if current != prev_buttons[btn_index]:
+                    osc_sender.send_button(btn_index, current)
+                    prev_buttons[btn_index] = current
 
-        pass
-        
-        # midi_mappings.append(MidiMapping(
-        #     name=f"{group_name} {mapping['name']}",
-        #     type=mapping.get("type", "note"),
-        #     channel=channel,
-        #     note= mapping["note"],
-        #     toggle=mapping.get("toggle", False),
-        #     callback=mapping.get("callback", None)
-        #     , easing=mapping.get("easing", None),
-        #     hold_callback=mapping.get("hold_callback", None),
-        #     hold_repeat_interval=mapping.get("hold_repeat_interval", None)
-        # ))
-        
+            # Check hat (D‑pad) changes.  Many joysticks only have one hat.
+            if joy.get_numhats() > 0:
+                current_hat = joy.get_hat(0)
+                if current_hat != prev_hat:
+                    osc_sender.send_hat(*current_hat)
+                    prev_hat = current_hat
 
-current_state = {
-    channel: ControllerState(channel, channel_group_mapping=channel_group_mapping, layer_list=layer_list, midi_out=midi_out) for channel in NAME_TO_CHANNEL.values()
-}
-# run update loop for each channel on startup
-for channel in current_state:
-    current_state[channel].update_loop()
+            # Sleep briefly to avoid hogging CPU.
+            time.sleep(0.01)
 
-# === Event Loop ===
-logging.info("🎛️ Starting MIDI event loop")
-try:
-    while True:
-        msg = midi_in.get_message()
-        if msg:
-            message, delta = msg
-            status, data1, data2 = message
-            msg_type = status & 0xF0
-            channel = status & 0x0F
+    except KeyboardInterrupt:
+        print("\nExiting…")
+    finally:
+        pygame.quit()
 
-            if msg_type == 0x90:
-                logging.debug(f"🎹 NOTE ON: Note {data1} | Velocity {data2} | Channel {channel}")
-            elif msg_type == 0x80:
-                logging.debug(f"🔈 NOTE OFF: Note {data1} | Channel {channel}")
-            elif msg_type == 0xB0:
-                logging.debug(f"🎛 CC: Controller {data1} | Value {data2} | Channel {channel}")
-            else:
-                logging.debug(f"🎲 Unknown MIDI Message: {message}")
 
-            for m in midi_mappings:
-                if m.matches(message):
-                    m.handle(message, midi_out)
-
-            if channel in current_state:
-                current_state[channel].update_loop()
-
-        time.sleep(0.01)
-except KeyboardInterrupt:
-    logging.info("🛑 Exiting.")
-finally:
-    midi_in.close_port()
-    midi_out.close_port()
-    logging.info("✅ Ports closed.")
+if __name__ == "__main__":
+    main()

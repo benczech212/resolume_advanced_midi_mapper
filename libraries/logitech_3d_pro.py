@@ -19,12 +19,14 @@ envelopes = {
 
 class JoystickInput:
     
-    def __init__(self, joystick):
+    def __init__(self, joystick, midi_sender=None):
         self.joystick = joystick
         self.num_axes = joystick.get_numaxes()
         self.deadzone = [0.05] * self.num_axes
         self.envelopes = ["linear"] * self.num_axes
         self.state = [0.0] * self.num_axes
+        self.midi_sender = midi_sender
+
 
     def set_deadzone(self, axis, value):
         self.deadzone[axis] = value
@@ -48,4 +50,11 @@ class JoystickInput:
             new_val = self.process_axis(i)
             if abs(new_val - self.state[i]) > 0.01:
                 osc_sender.send_axis(i, new_val)
+                self.state[i] = new_val
+
+    def update_and_send_midi(self):
+        for i in range(self.num_axes):
+            new_val = self.process_axis(i)
+            if abs(new_val - self.state[i]) > 0.01:
+                self.midi_sender.send_axis(i, new_val)
                 self.state[i] = new_val
