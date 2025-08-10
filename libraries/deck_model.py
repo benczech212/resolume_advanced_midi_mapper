@@ -6,7 +6,9 @@ from typing import Dict, List, Optional
 class LayerInfo:
     index: int
     name: str
-    types: List[str]  # e.g., ["fills", "effects", "colors"]
+    types: List[str]  # e.g., ["fills", "effects", "colors", "transforms"]
+    clips: List[int] = field(default_factory=list)          # 1-based clip columns that are NOT stop clips
+    stop_clip: Optional[int] = None                         # 1-based first stop clip column, if present
 
 @dataclass
 class GroupInfo:
@@ -20,8 +22,9 @@ class DeckState:
     playing: bool = False
     effects: bool = False
     colors: bool = False
-    transform: bool = False         
-    fill: float = 0.0  # 0..1
+    transform: bool = False
+    fill: float = 0.0       # 0..1
+    opacity: float = 1.0    # 0..1
     last_changed: float = field(default_factory=time.time)
 
     def set_playing(self, value: bool):
@@ -39,22 +42,28 @@ class DeckState:
             self.colors = value
             self.last_changed = time.time()
 
+    def set_transform(self, value: bool):
+        if self.transform != value:
+            self.transform = value
+            self.last_changed = time.time()
+
     def set_fill(self, value: float):
         v = max(0.0, min(1.0, float(value)))
         if abs(self.fill - v) > 1e-6:
             self.fill = v
             self.last_changed = time.time()
 
-    def set_transform(self, value: bool):
-        if self.transform != value:
-            self.transform = value
+    def set_opacity(self, value: float):
+        v = max(0.0, min(1.0, float(value)))
+        if abs(self.opacity - v) > 1e-6:
+            self.opacity = v
             self.last_changed = time.time()
 
 class DeckManager:
     """
     - Exact match group_to_deck
     - Holds deck states
-    - Holds a live model of groups/layers/types from OSC+HTTP
+    - Holds a live model of groups/layers/types (and now clips/stop_clip) from HTTP
     """
     def __init__(self, group_to_deck: Dict[str, str]):
         self.group_to_deck = group_to_deck
@@ -81,6 +90,7 @@ class DeckManager:
         if "effects" in n: t.append("effects")
         if "colors" in n: t.append("colors")
         if "transforms" in n: t.append("transforms")
+        if "opacity" in n: t.append("opacity")
         return t
 
     def upsert_group(self, group_index: int, group_name: str):
@@ -92,13 +102,36 @@ class DeckManager:
             gi.name = group_name
         self.groups_by_name[group_name] = gi
 
-    def upsert_layer(self, group_index: int, layer_index: int, layer_name: str):
+    def upsert_layer(
+        self,
+        group_index: int,
+        layer_index: int,
+        layer_name: str,
+        *,
+        clips: Optional[List[int]] = None,
+        stop_clip: Optional[int] = None,
+    ):
         gi = self.groups_by_index.get(group_index)
         if gi is None:
             gi = GroupInfo(index=group_index, name=f"Group {group_index}")
             self.groups_by_index[group_index] = gi
+
         types = self._layer_types_from_name(layer_name)
-        gi.layers[layer_index] = LayerInfo(index=layer_index, name=layer_name, types=types)
+        li = gi.layers.get(layer_index)
+        if li is None:
+            li = LayerInfo(
+                index=layer_index,
+                name=layer_name,
+                types=types,
+                clips=list(clips or []),
+                stop_clip=stop_clip,
+            )
+            gi.layers[layer_index] = li
+        else:
+            li.name = layer_name
+            li.types = types
+            li.clips = list(clips or [])
+            li.stop_clip = stop_clip
 
     def get_group_layers_by_type(self, group_name: str, layer_type: str) -> List[LayerInfo]:
         gi = self.groups_by_name.get(group_name)

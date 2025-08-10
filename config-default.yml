@@ -1,8 +1,3 @@
-ui:
-  enable: true
-  fps: 30
-  max_cols: 3
-
 osc:
   tx_host: "127.0.0.1"
   tx_port: 7000
@@ -22,13 +17,8 @@ midi:
   apc40_in_match: "APC40"
   apc40_out_match: "APC40"
 
-joystick:
-  enabled: true
-  index: 0
-  deadzone: 0.05     # ignore tiny stick noise
-  axis_step: 0.02    # quantize axes (only emit when change >= this)
-  poll_hz: 20        # UI responsiveness vs CPU (20Hz ~= 50ms)
-
+enable_joystick: true
+joystick_index: 0
 enable_launchpad: true
 enable_apc40: true
 reflect_hz: 30.0
@@ -40,21 +30,21 @@ devices:
     kind: "midi"
     in_match: "APC40"
     out_match: "APC40"
-    reset_notes_on_start: true   # send velocity 0 to all notes (default true in code above)
     # Human MIDI channels that control decks (2–7). 0 and 1 are unmapped.
     channel_to_deck:
-      3: stage
-      4: background
-      5: wires
-      6: merkaba
-      7: flower
-      8: top
+      2: stage
+      3: background
+      4: wires
+      5: merkaba
+      6: flower
+      7: top
+
+# No Launchpad mappings yet (intentionally blank)
+# devices:
 #   launchpad:
 #     kind: "midi"
 #     in_match: "Launchpad"
 #     out_match: "Launchpad"
-
-
 
 templates:
   per_deck:
@@ -62,37 +52,25 @@ templates:
     - device: apc40
       rules:
         # Toggles
-        - control: ["cc", 7, "{channel}"]   # channel comes from devices.apc40.channel_to_deck
-          action: set_opacity
-          deck: "{deck}"
-
-
         - control: ["note", 48, "{channel}"]
           action: toggle_effects
           deck: "{deck}"
           edge: press
-          treat_zero_as_press: true
-
         - control: ["note", 49, "{channel}"]
           action: toggle_colors
           deck: "{deck}"
           edge: press
-          treat_zero_as_press: true
-
         - control: ["note", 50, "{channel}"]
           action: toggle_transform
           deck: "{deck}"
           edge: press
-          treat_zero_as_press: true
 
-
-        
-        # 57 becomes NEXT CLIP (press)
+        # Fill presets
         - control: ["note", 57, "{channel}"]
-          action: next_or_random
+          action: set_fill
           deck: "{deck}"
+          fixed_value: 0.0
           edge: press
-
         - control: ["note", 56, "{channel}"]
           action: set_fill
           deck: "{deck}"
@@ -166,11 +144,6 @@ templates:
       control: ["note", 65, 0]
       action: toggle_metronome
       edge: press
-
-    # - device: apc40
-    #   control: ["cc", 7, 14]
-    #   action: toggle_metronome
-    #   edge: press
 
 # Your exact Resolume group -> deck mapping
 group_to_deck_mapping:
